@@ -7,9 +7,6 @@ exports.registerUser = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    console.log("📥 Register Request:", { name, email });
-
-    // Validation
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' });
     }
@@ -23,11 +20,9 @@ exports.registerUser = async (req, res) => {
     user = new User({ name, email, password: hashedPassword });
     await user.save();
 
-    console.log("✅ Registered User:", user.email);
-
     res.status(201).json({ message: 'User registered successfully' });
   } catch (err) {
-    console.error("❌ Register Error:", err);
+    console.error("Register Error:", err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -37,8 +32,6 @@ exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    console.log("🔐 Login Attempt:", email);
-
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password required' });
     }
@@ -49,7 +42,6 @@ exports.loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    // Make sure secret is available
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET is not defined in .env");
     }
@@ -57,8 +49,6 @@ exports.loginUser = async (req, res) => {
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: '1d',
     });
-
-    console.log("✅ Login Success:", email);
 
     res.status(200).json({
       token,
@@ -69,18 +59,61 @@ exports.loginUser = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Login Error:", err);
+    console.error("Login Error:", err);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
-// Protected dashboard route
+/// ✅ Admin-only login
+exports.loginAdmin = async (req, res) => {
+  const { email, password } = req.body;
+
+  const ADMIN_EMAIL = "admin@rentmyfit.com";
+  const ADMIN_PASSWORD = "admin1234";
+
+  try {
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password required' });
+    }
+
+    if (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
+      return res.status(401).json({ message: 'Unauthorized: Invalid admin credentials' });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not defined in .env");
+    }
+
+    const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
+
+    console.log("✅ Admin Login Success");
+
+    // ✅ Return token + fake id so Flutter won’t break
+    res.status(200).json({
+      token,
+      user: {
+        id: "admin_001",               // ✅ add fake id
+        name: "Admin",
+        email: ADMIN_EMAIL,
+        isAdmin: true,
+      },
+    });
+  } catch (err) {
+    console.error("Admin Login Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+// Get user dashboard
 exports.getDashboard = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password');
     res.status(200).json({ message: 'Welcome to dashboard!', user });
   } catch (err) {
-    console.error("❌ Dashboard Fetch Error:", err);
+    console.error("Dashboard Fetch Error:", err);
     res.status(500).json({ message: 'Failed to fetch dashboard' });
   }
 };

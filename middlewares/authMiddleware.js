@@ -10,7 +10,13 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { userId: ... }
+
+    // Accept user OR admin
+    if (!decoded.userId && decoded.role !== 'admin') {
+      return res.status(403).json({ message: 'Unauthorized access' });
+    }
+
+    req.user = decoded;
     next();
   } catch (err) {
     res.status(401).json({ message: 'Token is not valid' });
