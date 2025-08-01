@@ -56,6 +56,7 @@ exports.loginUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        wishlist: user.wishlist || [],
       },
     });
   } catch (err) {
@@ -64,7 +65,7 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-/// ✅ Admin-only login
+// ✅ Admin-only login
 exports.loginAdmin = async (req, res) => {
   const { email, password } = req.body;
 
@@ -88,13 +89,10 @@ exports.loginAdmin = async (req, res) => {
       expiresIn: '1d',
     });
 
-    console.log("✅ Admin Login Success");
-
-    // ✅ Return token + fake id so Flutter won’t break
     res.status(200).json({
       token,
       user: {
-        id: "admin_001",               // ✅ add fake id
+        id: "admin_001",
         name: "Admin",
         email: ADMIN_EMAIL,
         isAdmin: true,
@@ -106,7 +104,6 @@ exports.loginAdmin = async (req, res) => {
   }
 };
 
-
 // Get user dashboard
 exports.getDashboard = async (req, res) => {
   try {
@@ -117,3 +114,139 @@ exports.getDashboard = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch dashboard' });
   }
 };
+
+// ✅ Add to Wishlist
+exports.toggleWishlist = async (req, res) => {
+  const { productId } = req.body;
+
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const index = user.wishlist.indexOf(productId);
+
+    if (index > -1) {
+      // Product already in wishlist → remove
+      user.wishlist.splice(index, 1);
+    } else {
+      // Not in wishlist → add
+      user.wishlist.push(productId);
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: index > -1 ? 'Removed from wishlist' : 'Added to wishlist',
+      wishlist: user.wishlist,
+    });
+  } catch (err) {
+    console.error("Toggle Wishlist Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+// ✅ Get Wishlist
+exports.getWishlist = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).populate('wishlist');
+    res.status(200).json(user.wishlist);
+  } catch (err) {
+    console.error("Get Wishlist Error:", err);
+    res.status(500).json({ message: 'Failed to fetch wishlist' });
+  }
+};
+
+// ================== CART CONTROLLERS ==================
+
+// ✅ Get Cart
+exports.getCart = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).populate('cart.product');
+    res.status(200).json(user.cart);
+  } catch (err) {
+    console.error("Get Cart Error:", err);
+    res.status(500).json({ message: 'Failed to fetch cart' });
+  }
+};
+
+// ✅ Add to Cart
+exports.addToCart = async (req, res) => {
+  const { productId } = req.body;
+
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const existingItem = user.cart.find(item => item.product.toString() === productId);
+
+    if (existingItem) {
+      existingItem.quantity += 1;
+    } else {
+      user.cart.push({ product: productId, quantity: 1 });
+    }
+
+    await user.save();
+
+    res.status(200).json({ message: 'Product added to cart', cart: user.cart });
+  } catch (err) {
+    console.error("Add to Cart Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ✅ Update Quantity
+exports.updateCartQuantity = async (req, res) => {
+  const { productId, quantity } = req.body;
+
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const item = user.cart.find(item => item.product.toString() === productId);
+    if (!item) return res.status(404).json({ message: 'Item not in cart' });
+
+    item.quantity = quantity;
+    await user.save();
+
+    res.status(200).json({ message: 'Cart updated', cart: user.cart });
+  } catch (err) {
+    console.error("Update Cart Quantity Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ✅ Remove Single Item
+exports.removeFromCart = async (req, res) => {
+  const { productId } = req.params;
+
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.cart = user.cart.filter(item => item.product.toString() !== productId);
+    await user.save();
+
+    res.status(200).json({ message: 'Product removed from cart', cart: user.cart });
+  } catch (err) {
+    console.error("Remove From Cart Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ✅ Clear Cart
+exports.clearCart = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.cart = [];
+    await user.save();
+
+    res.status(200).json({ message: 'Cart cleared', cart: user.cart });
+  } catch (err) {
+    console.error("Clear Cart Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
