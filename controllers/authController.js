@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const fs   = require('fs');
+const path = require('path');
 
 // Register a new user
 exports.registerUser = async (req, res) => {
@@ -159,23 +161,37 @@ exports.getWishlist = async (req, res) => {
 
 // ================== CART CONTROLLERS ==================
 
-// ✅ Get Cart
 exports.getCart = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).populate('cart.product');
-    res.status(200).json(user.cart);
+    const user = await User.findById(req.user.userId)
+      .populate('cart.product'); 
+    
+    const formattedCart = user.cart.map(item => ({
+      productId: item.product._id,
+      name: item.product.name,
+      imageUrl: item.product.image,
+      price: item.product.price,
+      quantity: item.quantity,
+    }));
+
+    res.status(200).json(formattedCart);
   } catch (err) {
     console.error("Get Cart Error:", err);
     res.status(500).json({ message: 'Failed to fetch cart' });
   }
 };
 
+
 // ✅ Add to Cart
 exports.addToCart = async (req, res) => {
   const { productId } = req.body;
+  console.log("Incoming productId:", productId);
+  console.log("User from token:", req.user);
 
   try {
     const user = await User.findById(req.user.userId);
+    console.log("Fetched user:", user);
+
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const existingItem = user.cart.find(item => item.product.toString() === productId);
@@ -187,13 +203,13 @@ exports.addToCart = async (req, res) => {
     }
 
     await user.save();
-
     res.status(200).json({ message: 'Product added to cart', cart: user.cart });
   } catch (err) {
     console.error("Add to Cart Error:", err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: err.message }); // Debugging
   }
 };
+
 
 // ✅ Update Quantity
 exports.updateCartQuantity = async (req, res) => {
@@ -249,4 +265,67 @@ exports.clearCart = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// ✅ Get Profile Info
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      name:         user.name,
+      email:        user.email,
+      address:      user.address || null,
+      phoneNumber:  user.phoneNumber || null,
+      profileImage: user.profileImage || '',
+    });
+  } catch (err) {
+    console.error("Get Profile Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ✅ Update Profile
+exports.updateProfile = async (req, res) => {
+  try {
+    // only pull the fields frontend is sending
+    const { name, email, address, phoneNumber } = req.body;
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // update each if provided
+    if (name)        user.name        = name;
+    if (email)       user.email       = email;
+    if (address !== undefined)    user.address     = address;
+    if (phoneNumber !== undefined)user.phoneNumber = phoneNumber;
+
+    // handle file upload (Multer)
+    if (req.file) {
+      user.profileImage = `/uploads/${req.file.filename}`;
+    }
+
+    await user.save();
+
+    // return exactly the fields Flutter expects
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      name:         user.name,
+      email:        user.email,
+      address:      user.address || null,
+      phoneNumber:  user.phoneNumber || null,
+      profileImage: user.profileImage,
+    });
+  } catch (err) {
+    console.error("Update Profile Error:", err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
+
 
