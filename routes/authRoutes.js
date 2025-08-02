@@ -10,12 +10,16 @@ const {
   addToCart,
   updateCartQuantity,
   removeFromCart,
-  clearCart,      
+  clearCart, 
+  getProfile,   
+  updateProfile,  
 } = require('../controllers/authController');
 
 const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' }); 
 
 // ✅ Auth routes
 router.post('/register', registerUser);
@@ -34,6 +38,10 @@ router.post('/cart', authMiddleware, addToCart);
 router.patch('/cart', authMiddleware, updateCartQuantity);
 router.delete('/cart/:productId', authMiddleware, removeFromCart);
 router.delete('/cart', authMiddleware, clearCart);
+
+router.get('/profile', authMiddleware, getProfile);
+router.put('/profile', authMiddleware, upload.single('profileImage'), updateProfile);
+
 
 
 module.exports = router;
