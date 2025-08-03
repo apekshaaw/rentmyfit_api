@@ -165,12 +165,14 @@ exports.getCart = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId)
       .populate('cart.product'); 
-    
+
+    console.log("User cart raw response:", JSON.stringify(user.cart, null, 2)); 
+
     const formattedCart = user.cart.map(item => ({
-      productId: item.product._id,
-      name: item.product.name,
-      imageUrl: item.product.image,
-      price: item.product.price,
+      productId: item.product?._id ?? null,
+      name: item.product?.name ?? null,
+      imageUrl: item.product?.image ?? null,
+      price: item.product?.price ?? 0,
       quantity: item.quantity,
     }));
 
@@ -180,6 +182,7 @@ exports.getCart = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch cart' });
   }
 };
+
 
 
 // ✅ Add to Cart
